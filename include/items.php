@@ -163,6 +163,11 @@ function get_feed_for(&$a, $dfrn_id, $owner_nick, $last_update, $direction = 0) 
 
 	$salmon = feed_salmonlinks($owner_nick);
 
+	$alternatelink = $owner['url'];
+
+	if(isset($category))
+		$alternatelink .= "/category/".$category;
+
 	$atom .= replace_macros($feed_template, array(
 		'$version'      => xmlify(FRIENDICA_VERSION),
 		'$feed_id'      => xmlify($a->get_baseurl() . '/profile/' . $owner_nick),
@@ -170,6 +175,7 @@ function get_feed_for(&$a, $dfrn_id, $owner_nick, $last_update, $direction = 0) 
 		'$feed_updated' => xmlify(datetime_convert('UTC', 'UTC', 'now' , ATOM_TIME)) ,
 		'$hub'          => $hubxml,
 		'$salmon'       => $salmon,
+		'$alternatelink' => xmlify($alternatelink),
 		'$name'         => xmlify($owner['name']),
 		'$profile_page' => xmlify($owner['url']),
 		'$photo'        => xmlify($owner['photo']),
@@ -983,7 +989,16 @@ function encode_rel_links($links) {
 
 
 
-function item_store($arr,$force_parent = false) {
+function item_store($arr,$force_parent = false, $notify = false) {
+
+	// If it is a posting where users should get notifications, then define it as wall posting
+	if ($notify) {
+		$arr['wall'] = 1;
+		$arr['type'] = 'wall';
+		$arr['origin'] = 1;
+		$arr['last-child'] = 1;
+		$arr['network'] = NETWORK_DFRN;
+	}
 
 	// If a Diaspora signature structure was passed in, pull it out of the
 	// item array and set it aside for later storage.
@@ -1144,6 +1159,7 @@ function item_store($arr,$force_parent = false) {
 		$allow_gid = $arr['allow_gid'];
 		$deny_cid  = $arr['deny_cid'];
 		$deny_gid  = $arr['deny_gid'];
+		$notify_type = 'wall-new';
 	}
 	else {
 
@@ -1180,6 +1196,7 @@ function item_store($arr,$force_parent = false) {
 			$deny_cid       = $r[0]['deny_cid'];
 			$deny_gid       = $r[0]['deny_gid'];
 			$arr['wall']    = $r[0]['wall'];
+			$notify_type    = 'comment-new';
 
 			// if the parent is private, force privacy for the entire conversation
 			// This differs from the above settings as it subtly allows comments from
@@ -1416,6 +1433,9 @@ function item_store($arr,$force_parent = false) {
 
 	create_tags_from_item($current_post);
 	create_files_from_item($current_post);
+
+	if ($notify)
+		proc_run('php', "include/notifier.php", $notify_type, $current_post);
 
 	return $current_post;
 }
@@ -2532,16 +2552,6 @@ function consume_feed($xml,$importer,&$contact, &$hub, $datedir = 0, $pass = 0) 
 				if($contact['network'] === NETWORK_FEED)
 					$datarray['private'] = 2;
 
-				// This is my contact on another system, but it's really me.
-				// Turn this into a wall post.
-
-				if($contact['remote_self']) {
-					$datarray['wall'] = 1;
-					if($contact['network'] === NETWORK_FEED) {
-						$datarray['private'] = 0;
-					}
-				}
-
 				$datarray['parent-uri'] = $item_id;
 				$datarray['uid'] = $importer['uid'];
 				$datarray['contact-id'] = $contact['id'];
@@ -2564,8 +2574,33 @@ function consume_feed($xml,$importer,&$contact, &$hub, $datedir = 0, $pass = 0) 
 				if(($contact['rel'] == CONTACT_IS_FOLLOWER) && (! tgroup_check($importer['uid'],$datarray)))
 					continue;
 
+				// This is my contact on another system, but it's really me.
+				// Turn this into a wall post.
 
-				$r = item_store($datarray);
+				if($contact['remote_self']) {
+					if ($contact['remote_self'] == 2) {
+						$r = q("SELECT `id`,`url`,`name`,`photo`,`network` FROM `contact` WHERE `uid` = %d AND `self`", intval($importer['uid']));
+						if (count($r)) {
+							$datarray['contact-id'] = $r[0]["id"];
+
+							$datarray['owner-name'] = $r[0]["name"];
+							$datarray['owner-link'] = $r[0]["url"];
+							$datarray['owner-avatar'] = $r[0]["photo"];
+
+							$datarray['author-name']   = $datarray['owner-name'];
+							$datarray['author-link']   = $datarray['owner-link'];
+							$datarray['author-avatar'] = $datarray['owner-avatar'];
+						}
+					}
+
+					$notify = true;
+					if($contact['network'] === NETWORK_FEED) {
+						$datarray['private'] = 0;
+					}
+				} else
+					$notify = false;
+
+				$r = item_store($datarray, false, $notify);
 				continue;
 
 			}
@@ -3633,12 +3668,6 @@ function local_delivery($importer,$data) {
 				continue;
 			}
 
-			// This is my contact on another system, but it's really me.
-			// Turn this into a wall post.
-
-			if($importer['remote_self'])
-				$datarray['wall'] = 1;
-
 			$datarray['parent-uri'] = $item_id;
 			$datarray['uid'] = $importer['importer_uid'];
 			$datarray['contact-id'] = $importer['id'];
@@ -3658,7 +3687,31 @@ function local_delivery($importer,$data) {
 			if(($importer['rel'] == CONTACT_IS_FOLLOWER) && (! tgroup_check($importer['importer_uid'],$datarray)))
 				continue;
 
-			$posted_id = item_store($datarray);
+			// This is my contact on another system, but it's really me.
+			// Turn this into a wall post.
+
+			if($importer['remote_self']) {
+				if ($importer['remote_self'] == 2) {
+					$r = q("SELECT `id`,`url`,`name`,`photo`,`network` FROM `contact` WHERE `uid` = %d AND `self`",
+						intval($importer['importer_uid']));
+					if (count($r)) {
+						$datarray['contact-id'] = $r[0]["id"];
+
+						$datarray['owner-name'] = $r[0]["name"];
+						$datarray['owner-link'] = $r[0]["url"];
+						$datarray['owner-avatar'] = $r[0]["photo"];
+
+						$datarray['author-name']   = $datarray['owner-name'];
+						$datarray['author-link']   = $datarray['owner-link'];
+						$datarray['author-avatar'] = $datarray['owner-avatar'];
+					}
+				}
+
+				$notify = true;
+			} else
+				$notify = false;
+
+			$posted_id = item_store($datarray, false, $notify);
 
 			if(stristr($datarray['verb'],ACTIVITY_POKE)) {
 				$verb = urldecode(substr($datarray['verb'],strpos($datarray['verb'],'#')+1));
@@ -3775,6 +3828,7 @@ function new_follower($importer,$contact,$datarray,$item,$sharing = false) {
 				dbesc(datetime_convert())
 			);
 		}
+
 		$r = q("SELECT * FROM `user` WHERE `uid` = %d LIMIT 1",
 			intval($importer['uid'])
 		);
@@ -3788,20 +3842,24 @@ function new_follower($importer,$contact,$datarray,$item,$sharing = false) {
 
 			if(($r[0]['notify-flags'] & NOTIFY_INTRO) &&
 				(($r[0]['page-flags'] == PAGE_NORMAL) OR ($r[0]['page-flags'] == PAGE_SOAPBOX))) {
-				$email_tpl = get_intltext_template('follow_notify_eml.tpl');
-				$email = replace_macros($email_tpl, array(
-					'$requestor' => ((strlen($name)) ? $name : t('[Name Withheld]')),
-					'$url' => $url,
-					'$myname' => $r[0]['username'],
-					'$siteurl' => $a->get_baseurl(),
-					'$sitename' => $a->config['sitename']
+
+
+
+				notification(array(
+					'type'         => NOTIFY_INTRO,
+					'notify_flags' => $r[0]['notify-flags'],
+					'language'     => $r[0]['language'],
+					'to_name'      => $r[0]['username'],
+					'to_email'     => $r[0]['email'],
+					'uid'          => $r[0]['uid'],
+					'link'		   => $a->get_baseurl() . '/notifications/intro',
+					'source_name'  => ((strlen(stripslashes($contact_record['name']))) ? stripslashes($contact_record['name']) : t('[Name Withheld]')),
+					'source_link'  => $contact_record['url'],
+					'source_photo' => $contact_record['photo'],
+					'verb'         => ($sharing ? ACTIVITY_FRIEND : ACTIVITY_FOLLOW),
+					'otype'        => 'intro'
 				));
-				$res = mail($r[0]['email'],
-					email_header_encode((($sharing) ? t('A new person is sharing with you at ') : t("You have a new follower at ")) . $a->config['sitename'],'UTF-8'),
-					$email,
-					'From: ' . 'Administrator' . '@' . $_SERVER['SERVER_NAME'] . "\n"
-					. 'Content-type: text/plain; charset=UTF-8' . "\n"
-					. 'Content-transfer-encoding: 8bit' );
+
 
 			}
 		}
@@ -4519,13 +4577,9 @@ function posted_dates($uid,$wall) {
 	if(! $dthen)
 		return array();
 
-	// If it's near the end of a long month, backup to the 28th so that in
-	// consecutive loops we'll always get a whole month difference.
-
-	if(intval(substr($dnow,8)) > 28)
-		$dnow = substr($dnow,0,8) . '28';
-	if(intval(substr($dthen,8)) > 28)
-		$dnow = substr($dthen,0,8) . '28';
+	// Set the start and end date to the beginning of the month
+	$dnow = substr($dnow,0,8).'01';
+	$dthen = substr($dthen,0,8).'01';
 
 	$ret = array();
 	// Starting with the current month, get the first and last days of every

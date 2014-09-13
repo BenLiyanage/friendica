@@ -22,7 +22,6 @@
 	var prev = null;
 	var livetime = null;
 	var force_update = false;
-	var msie = false;
 	var stopped = false;
 	var totStopped = false;
 	var timer = null;
@@ -37,8 +36,6 @@
 	$(function() {
 		$.ajaxSetup({cache: false});
 
-		msie = $.browser.msie ;
-		
 		/* setup tooltips *//*
 		$("a,.tt").each(function(){
 			var e = $(this);
@@ -104,10 +101,6 @@
 		});
 		
 		// fancyboxes
-		/*$("a.popupbox").fancybox({
-			'transitionIn' : 'elastic',
-			'transitionOut' : 'elastic'
-		});*/
 		$("a.popupbox").colorbox({
 			'inline' : true,
 			'transition' : 'elastic'
@@ -307,7 +300,7 @@
 			force_update = true;
 
 		var udargs = ((netargs.length) ? '/' + netargs : '');
-		var update_url = 'update_' + src + udargs + '&p=' + profile_uid + '&page=' + profile_page + '&msie=' + ((msie) ? 1 : 0) + '&force=' + ((force_update) ? 1 : 0);
+		var update_url = 'update_' + src + udargs + '&p=' + profile_uid + '&page=' + profile_page + '&force=' + ((force_update) ? 1 : 0);
 
 		$.get(update_url,function(data) {
 			in_progress = false;
@@ -441,13 +434,33 @@
 				$('#star-' + ident).addClass('hidden');
 				$('#unstar-' + ident).removeClass('hidden');
 			}
-			else {			
+			else {
 				$('#starred-' + ident).addClass('unstarred');
 				$('#starred-' + ident).removeClass('starred');
 				$('#star-' + ident).removeClass('hidden');
 				$('#unstar-' + ident).addClass('hidden');
 			}
-			$('#like-rotator-' + ident).hide();	
+			$('#like-rotator-' + ident).hide();
+		});
+	}
+
+	function doignore(ident) {
+		ident = ident.toString();
+		$('#like-rotator-' + ident).show();
+		$.get('ignored/' + ident, function(data) {
+			if(data.match(/1/)) {
+				$('#ignored-' + ident).addClass('ignored');
+				$('#ignored-' + ident).removeClass('unignored');
+				$('#ignore-' + ident).addClass('hidden');
+				$('#unignore-' + ident).removeClass('hidden');
+			}
+			else {
+				$('#ignored-' + ident).addClass('unignored');
+				$('#ignored-' + ident).removeClass('ignored');
+				$('#ignore-' + ident).removeClass('hidden');
+				$('#unignore-' + ident).addClass('hidden');
+			}
+			$('#like-rotator-' + ident).hide();
 		});
 	}
 
