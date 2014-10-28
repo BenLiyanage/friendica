@@ -457,27 +457,28 @@ class Photo {
 
 
     public function scaleImageSquare($dim) {
-	if(!$this->is_valid())
-	    return FALSE;
+        if(!$this->is_valid())
+            return FALSE;
 
-	if($this->is_imagick()) {
-	    $this->image->setFirstIterator();
-	    do {
-		$this->image->scaleImage($dim, $dim);
-	    } while ($this->image->nextImage());
-	    return;
-	}
+        if($this->is_imagick()) {
+            $this->image->setFirstIterator();
+            do {
+            $this->image->scaleImage($dim, $dim);
+            } while ($this->image->nextImage());
+            return;
+        }
 
-	$dest = imagecreatetruecolor( $dim, $dim );
-	imagealphablending($dest, false);
-	imagesavealpha($dest, true);
-	if ($this->type=='image/png') imagefill($dest, 0, 0, imagecolorallocatealpha($dest, 0, 0, 0, 127)); // fill with alpha
-	imagecopyresampled($dest, $this->image, 0, 0, 0, 0, $dim, $dim, $this->width, $this->height);
-	if($this->image)
-	    imagedestroy($this->image);
-	$this->image = $dest;
-	$this->width  = imagesx($this->image);
-	$this->height = imagesy($this->image);
+        $dest = imagecreatetruecolor( $dim, $dim );
+        imagealphablending($dest, false);
+        imagesavealpha($dest, true);
+        if ($this->type=='image/png') 
+            imagefill($dest, 0, 0, imagecolorallocatealpha($dest, 0, 0, 0, 127)); // fill with alpha
+        imagecopyresampled($dest, $this->image, 0, 0, 0, 0, $dim, $dim, $this->width, $this->height);
+        if($this->image)
+            imagedestroy($this->image);
+        $this->image = $dest;
+        $this->width  = imagesx($this->image);
+        $this->height = imagesy($this->image);
     }
 
 
@@ -723,7 +724,10 @@ function import_profile_photo($photo,$uid,$cid) {
         $r = $img->store($uid, $cid, $hash, $filename, 'Contact Photos', 4 );
 
         if($r === false)
+        {
             $photo_failure = true;
+            logger('Photo.php:import_profile_photo: could not store 175x175 image', LOGGER_DEBUG);
+        }
 
         $img->scaleImage(80);
 
