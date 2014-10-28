@@ -1,5 +1,4 @@
 <?php
-
 /**
  *
  * class: App
@@ -181,13 +180,20 @@ if(! class_exists('App')) {
 
 			set_include_path("include/$this->hostname" . PATH_SEPARATOR . get_include_path());
 
-			if((x($_SERVER,'QUERY_STRING')) && substr($_SERVER['QUERY_STRING'],0,2) === "q=") {
+			if((x($_SERVER,'QUERY_STRING')) && substr($_SERVER['QUERY_STRING'],0,9) === "pagename=") {
+				$this->query_string = substr($_SERVER['QUERY_STRING'],9);
+				// removing trailing / - maybe a nginx problem
+				if (substr($this->query_string, 0, 1) == "/")
+					$this->query_string = substr($this->query_string, 1);
+			} elseif((x($_SERVER,'QUERY_STRING')) && substr($_SERVER['QUERY_STRING'],0,2) === "q=") {
 				$this->query_string = substr($_SERVER['QUERY_STRING'],2);
 				// removing trailing / - maybe a nginx problem
 				if (substr($this->query_string, 0, 1) == "/")
 					$this->query_string = substr($this->query_string, 1);
 			}
-			if(x($_GET,'q'))
+			if (x($_GET,'pagename'))
+				$this->cmd = trim($_GET['pagename'],'/\\');
+			elseif (x($_GET,'q'))
 				$this->cmd = trim($_GET['q'],'/\\');
 
 			// unix style "homedir"
@@ -463,7 +469,7 @@ if(! class_exists('App')) {
 			}
 	 		if ($name===""){
  				echo "template engine <tt>$class</tt> cannot be registered without a name.\n";
-				killme(); 
+				killme();
  			}
 			$this->template_engines[$name] = $class;
 		}
@@ -471,7 +477,7 @@ if(! class_exists('App')) {
 		/**
 		 * return template engine instance. If $name is not defined,
 		 * return engine defined by theme, or default
-		 * 
+		 *
 		 * @param strin $name Template engine name
 		 * @return object Template Engine instance
 		 */
@@ -537,6 +543,10 @@ if(! class_exists('App')) {
 		function mark_timestamp($mark) {
 			//$this->performance["markstart"] -= microtime(true) - $this->performance["marktime"];
 			$this->performance["markstart"] = microtime(true) - $this->performance["markstart"] - $this->performance["marktime"];
+		}
+
+		function get_useragent() {
+			return(FRIENDICA_PLATFORM." ".FRIENDICA_VERSION."-".DB_UPDATE_VERSION."; ".$this->get_baseurl());
 		}
 
 	}

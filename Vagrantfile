@@ -54,6 +54,7 @@ Vagrant.configure("2") do |config|
   ##########
 
   config.vm.synced_folder "./", "/vagrant/", :owner=> 'www-data', :group=>'vagrant', :mount_options => ['dmode=775', 'fmode=775']
+  config.vm.synced_folder "../friendica-addons/", "/vagrant/addon", :owner=> 'www-data', :group=>'vagrant', :mount_options => ['dmode=775', 'fmode=775']
   config.vm.provision "shell", path: "./util/vagrant_provision.sh" 
 
 end

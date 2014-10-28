@@ -699,61 +699,60 @@ function import_profile_photo($photo,$uid,$cid) {
     $a = get_app();
 
     $r = q("select `resource-id` from photo where `uid` = %d and `contact-id` = %d and `scale` = 4 and `album` = 'Contact Photos' limit 1",
-	intval($uid),
-	intval($cid)
-    );
+        intval($uid),
+        intval($cid)
+        );
+        
     if(count($r) && strlen($r[0]['resource-id'])) {
-	$hash = $r[0]['resource-id'];
-    }
-    else {
-	$hash = photo_new_resource();
+        $hash = $r[0]['resource-id'];
+    } else {
+        $hash = photo_new_resource();
     }
 
     $photo_failure = false;
 
     $filename = basename($photo);
     $img_str = fetch_url($photo,true);
-
     $type = guess_image_type($photo,true);
     $img = new Photo($img_str, $type);
+    
     if($img->is_valid()) {
 
-	$img->scaleImageSquare(175);
+        $img->scaleImageSquare(175);
 
-	$r = $img->store($uid, $cid, $hash, $filename, 'Contact Photos', 4 );
+        $r = $img->store($uid, $cid, $hash, $filename, 'Contact Photos', 4 );
 
-	if($r === false)
-	    $photo_failure = true;
+        if($r === false)
+            $photo_failure = true;
 
-	$img->scaleImage(80);
+        $img->scaleImage(80);
 
-	$r = $img->store($uid, $cid, $hash, $filename, 'Contact Photos', 5 );
+        $r = $img->store($uid, $cid, $hash, $filename, 'Contact Photos', 5 );
 
-	if($r === false)
-	    $photo_failure = true;
+        if($r === false)
+            $photo_failure = true;
 
-	$img->scaleImage(48);
+        $img->scaleImage(48);
 
-	$r = $img->store($uid, $cid, $hash, $filename, 'Contact Photos', 6 );
+        $r = $img->store($uid, $cid, $hash, $filename, 'Contact Photos', 6 );
 
-	if($r === false)
-	    $photo_failure = true;
+        if($r === false)
+            $photo_failure = true;
 
-	$photo = $a->get_baseurl() . '/photo/' . $hash . '-4.' . $img->getExt();
-	$thumb = $a->get_baseurl() . '/photo/' . $hash . '-5.' . $img->getExt();
-	$micro = $a->get_baseurl() . '/photo/' . $hash . '-6.' . $img->getExt();
+        $photo = $a->get_baseurl() . '/photo/' . $hash . '-4.' . $img->getExt();
+        $thumb = $a->get_baseurl() . '/photo/' . $hash . '-5.' . $img->getExt();
+        $micro = $a->get_baseurl() . '/photo/' . $hash . '-6.' . $img->getExt();
+    } else {
+        $photo_failure = true;
     }
-    else
-	$photo_failure = true;
 
     if($photo_failure) {
-	$photo = $a->get_baseurl() . '/images/person-175.jpg';
-	$thumb = $a->get_baseurl() . '/images/person-80.jpg';
-	$micro = $a->get_baseurl() . '/images/person-48.jpg';
+        $photo = $a->get_baseurl() . '/images/person-175.jpg';
+        $thumb = $a->get_baseurl() . '/images/person-80.jpg';
+        $micro = $a->get_baseurl() . '/images/person-48.jpg';
     }
 
     return(array($photo,$thumb,$micro));
-
 }
 
 function get_photo_info($url) {
